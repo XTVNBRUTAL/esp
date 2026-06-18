@@ -1,0 +1,262 @@
+--[[
+    Script Aimbot + ESP cho Roblox
+    Tham khảo từ các dự án mã nguồn mở
+    Mục đích: Học tập và nghiên cứu
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse()
+
+-- Cấu hình
+local Config = {
+    AimbotEnabled = false,
+    ESPEnabled = false,
+    AimPart = "Head",
+    FOV = 150,
+    Smoothness = 0.15,
+    EnemyColor = Color3.fromRGB(255, 0, 0),
+    AllyColor = Color3.fromRGB(0, 255, 0)
+}
+
+-- Vẽ FOV Circle
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = false
+FOVCircle.Radius = Config.FOV
+FOVCircle.Thickness = 2
+FOVCircle.Color = Color3.fromRGB(0, 255, 255)
+FOVCircle.Filled = false
+FOVCircle.Transparency = 0.5
+
+-- ESP Objects
+local ESPObjects = {}
+
+-- Tạo GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = game.CoreGui
+
+local function CreateGUI()
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Size = UDim2.new(0, 200, 0, 120)
+    MainFrame.Position = UDim2.new(0, 10, 0, 50)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    MainFrame.BackgroundTransparency = 0.2
+    MainFrame.Active = true
+    MainFrame.Draggable = true
+    MainFrame.Parent = ScreenGui
+
+    local function CreateButton(name, yPos, callback, defaultState)
+        local Button = Instance.new("TextButton")
+        Button.Size = UDim2.new(0, 180, 0, 25)
+        Button.Position = UDim2.new(0, 10, 0, yPos)
+        Button.Text = name .. ": " .. (defaultState and "ON" or "OFF")
+        Button.TextColor3 = defaultState and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(200, 200, 200)
+        Button.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+        Button.Font = Enum.Font.Gotham
+        Button.TextSize = 12
+        Button.Parent = MainFrame
+        
+        local enabled = defaultState or false
+        Button.MouseButton1Click:Connect(function()
+            enabled = not enabled
+            callback(enabled)
+            Button.Text = name .. ": " .. (enabled and "ON" or "OFF")
+            Button.TextColor3 = enabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(200, 200, 200)
+        end)
+        return Button
+    end
+
+    CreateButton("Aimbot", 35, function(state) 
+        Config.AimbotEnabled = state
+        FOVCircle.Visible = state
+    end, false)
+
+    CreateButton("ESP", 70, function(state) 
+        Config.ESPEnabled = state
+        if not state then
+            for _, obj in pairs(ESPObjects) do
+                obj.Visible = false
+            end
+        end
+    end, false)
+end
+
+CreateGUI()
+
+-- Hàm tìm mục tiêu gần nhất
+local function GetClosestTarget()
+    local closestTarget = nil
+    local shortestDistance = math.huge
+    local mousePos = UserInputService:GetMouseLocation()
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+            local targetPart = player.Character:FindFirstChild(Config.AimPart) or player.Character:FindFirstChild("Head")
+            if targetPart then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                if onScreen then
+                    local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                    if distance < shortestDistance and distance < Config.FOV then
+                        shortestDistance = distance
+                        closestTarget = targetPart
+                    end
+                end
+            end
+        end
+    end
+    
+    return closestTarget
+end
+
+-- Hàm cập nhật ESP
+local function UpdateESP()
+    if not Config.ESPEnabled then
+        for _, obj in pairs(ESPObjects) do
+            obj.Visible = false
+        end
+        return
+    end
+    
+    -- Xóa ESP cũ
+    for _, obj in pairs(ESPObjects) do
+        obj.Visible = false
+    end
+    ESPObjects = {}
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then continue end
+        
+        local rootPart = player.Character.HumanoidRootPart
+        local head = player.Character:FindFirstChild("Head")
+        if not head then continue end
+        
+        local screenPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+        if not onScreen then continue end
+        
+        local isEnemy = player.Team ~= LocalPlayer.Team
+        local color = isEnemy and Config.EnemyColor or Config.AllyColor
+        
+        -- Vẽ Box ESP (tham khảo từ dự án mã nguồn mở)
+        local headPos = Camera:WorldToViewportPoint(head.Position)
+        local footPos = Camera:WorldToViewportPoint(rootPart.Position + Vector3.new(0, -3, 0))
+        
+        local height = footPos.Y - headPos.Y
+        local width = height * 0.5
+        
+        local box = Drawing.new("Quad")
+        box.PointA = Vector2.new(headPos.X - width/2, headPos.Y)
+        box.PointB = Vector2.new(headPos.X + width/2, headPos.Y)
+        box.PointC = Vector2.new(footPos.X + width/2, footPos.Y)
+        box.PointD = Vector2.new(footPos.X - width/2, footPos.Y)
+        box.Color = color
+        box.Thickness = 2
+        box.Transparency = 0.7
+        box.Filled = false
+        box.Visible = true
+        table.insert(ESPObjects, box)
+        
+        -- Vẽ tên
+        local nameObj = Drawing.new("Text")
+        nameObj.Text = player.Name
+        nameObj.Color = color
+        nameObj.Size = 14
+        nameObj.Center = true
+        nameObj.Outline = true
+        nameObj.OutlineColor = Color3.fromRGB(0, 0, 0)
+        nameObj.Position = Vector2.new(screenPos.X, screenPos.Y - 35)
+        nameObj.Visible = true
+        table.insert(ESPObjects, nameObj)
+    end
+end
+
+-- Vòng lặp chính
+RunService.RenderStepped:Connect(function()
+    -- Cập nhật FOV Circle
+    if Config.AimbotEnabled then
+        local mousePos = UserInputService:GetMouseLocation()
+        FOVCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
+        FOVCircle.Visible = true
+    else
+        FOVCircle.Visible = false
+    end
+    
+    -- Cập nhật ESP
+    UpdateESP()
+    
+    -- Xử lý Aimbot
+    if Config.AimbotEnabled then
+        local target = GetClosestTarget()
+        if target then
+            local targetPos = Camera:WorldToViewportPoint(target.Position)
+            local mousePos = UserInputService:GetMouseLocation()
+            local delta = Vector2.new(targetPos.X, targetPos.Y) - mousePos
+            mousemoverel(delta.X * Config.Smoothness, delta.Y * Config.Smoothness)
+        end
+    end
+end)
+
+print("✅ Script Aimbot + ESP đã tải thành công!")
+-- ESP Siêu Nhẹ (Chỉ Box + Health)
+local Players, Camera = game:GetService("Players"), workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+-- Tạo 20 object cố định
+local boxes, healthBars = {}, {}
+for i = 1, 20 do
+    boxes[i] = Drawing.new("Quad")
+    boxes[i].Visible = false
+    healthBars[i] = Drawing.new("Quad")
+    healthBars[i].Visible = false
+end
+
+game:GetService("RunService").Heartbeat:Connect(function()
+    local count = 0
+    for _, p in pairs(Players:GetPlayers()) do
+        if p == LocalPlayer then continue end
+        if not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") then continue end
+        
+        local root = p.Character.HumanoidRootPart
+        local head = p.Character:FindFirstChild("Head") or root
+        local pos, onScreen = Camera:WorldToViewportPoint(root.Position)
+        if not onScreen then continue end
+        
+        count = count + 1
+        if count > 20 then break end
+        
+        -- Box
+        local headPos = Camera:WorldToViewportPoint(head.Position)
+        local height = (Camera:WorldToViewportPoint(root.Position + Vector3.new(0,-3,0)).Y - headPos.Y)
+        local width = height * 0.5
+        
+        local box = boxes[count]
+        box.PointA = Vector2.new(headPos.X - width/2, headPos.Y)
+        box.PointB = Vector2.new(headPos.X + width/2, headPos.Y)
+        box.PointC = Vector2.new(pos.X + width/2, pos.Y)
+        box.PointD = Vector2.new(pos.X - width/2, pos.Y)
+        box.Color = Color3.fromRGB(255,0,0)
+        box.Thickness = 2
+        box.Filled = false
+        box.Visible = true
+        
+        -- Health Bar
+        local health = p.Character.Humanoid and p.Character.Humanoid.Health / p.Character.Humanoid.MaxHealth or 1
+        local hBar = healthBars[count]
+        hBar.PointA = Vector2.new(pos.X - width/2, pos.Y + 5)
+        hBar.PointB = Vector2.new(pos.X - width/2 + (width * health), pos.Y + 5)
+        hBar.PointC = Vector2.new(pos.X - width/2 + (width * health), pos.Y + 8)
+        hBar.PointD = Vector2.new(pos.X - width/2, pos.Y + 8)
+        hBar.Color = Color3.fromRGB(255*(1-health), 255*health, 0)
+        hBar.Filled = true
+        hBar.Visible = true
+    end
+    
+    -- Ẩn object thừa
+    for i = count + 1, 20 do
+        boxes[i].Visible = false
+        healthBars[i].Visible = false
+    end
+end)

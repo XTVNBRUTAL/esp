@@ -1,0 +1,93 @@
+bool ESPBooyah = false;
+bool ESPID = false;
+bool ESPLevel = false;
+bool EspRank = false;
+int EspBooyahInt = 0;
+unsigned long long EspIdLong = 0;
+int EspLevelInt = 0;
+int EspRankInt = 0;
+int EspScoreInt = 0;
+
+
+
+
+    if (ESPLevel || ESPID || EspRank || ESPBooyah) {   // BY R4Z
+                            uintptr_t profileInfo = 0;
+
+                            // Read profileInfo pointer 
+                            if (ReadZ<uintptr_t>(entity + 0x16A4, profileInfo) && profileInfo > 0x1000) {
+
+                                if (ESPLevel)
+                                    ReadZ<int>(profileInfo + 0x10, EspLevelInt);
+
+                                if (ESPID)
+                                    ReadZ<unsigned long long>(profileInfo + 0x8, EspIdLong);
+
+                                if (EspRank) {
+                                    ReadZ<int>(profileInfo + 0x54, EspRankInt);
+                                    ReadZ<int>(profileInfo + 0x58, EspScoreInt);
+                                }
+
+                                if (ESPBooyah)
+                                    ReadZ<int>(profileInfo + 0x19C, EspBooyahInt);
+                            }
+                            else {
+                                // Ila mal9ach pointer, dir chi ra9m dial l-test bach t-checki wach l-draw kheddam
+                                EspLevelInt = 1;
+                                EspIdLong = 123456789;
+                            }
+                        }
+
+                      // BY R4Z
+                        ImColor colorBooyah = ImColor(255, 0, 0);    
+                        ImColor colorRank = ImColor(255, 0, 0);   
+                        ImColor colorLevel = ImColor(255, 0, 0);  
+                        ImColor colorID = ImColor(255, 0, 0);    
+                        ImColor shadowBlack = ImColor(0, 0, 0, 255);
+
+                        float topY = PlayerPosHead.Y - 30.0f;
+
+                        if (ESPBooyah) {   // BY R4Z
+                            char buf[64];
+                            sprintf(buf, "Boyat: %d", EspBooyahInt);
+                            ImVec2 size = ImGui::CalcTextSize(buf);
+                            float startX = PlayerPosHead.X - size.x / 2.0f;
+                            vList->AddText(ImVec2(startX + 1, topY + 1), shadowBlack, buf);
+                            vList->AddText(ImVec2(startX, topY), colorBooyah, buf);
+                            topY -= (size.y + 2.0f); // Had l-hissab ghadi w kat-tl3 l-foq
+                        }
+
+                        if (EspRank) {   // BY R4Z
+                            char buf[64];
+                            sprintf(buf, "Rank: %d | Score: %d", EspRankInt, EspScoreInt);
+                            ImVec2 size = ImGui::CalcTextSize(buf);
+                            float startX = PlayerPosHead.X - size.x / 2.0f;
+                            vList->AddText(ImVec2(startX + 1, topY + 1), shadowBlack, buf);
+                            vList->AddText(ImVec2(startX, topY), colorRank, buf);
+                        }
+
+                        
+                        float infoY = PlayerPosBott.Y + 25.0f;
+
+                        if (ESPLevel) {
+                            char buf[32];
+                            sprintf(buf, "Lvl: %d", EspLevelInt);
+                            ImVec2 size = ImGui::CalcTextSize(buf);
+                            float startX = PlayerPosHead.X - size.x / 2.0f;
+                            vList->AddText(ImVec2(startX + 1, infoY + 1), shadowBlack, buf);
+                            vList->AddText(ImVec2(startX, infoY), colorLevel, buf);
+                            infoY += (size.y + 2.0f); // Had l-hissab ghadi w kat-hbet l-t7t
+                        }
+
+
+
+
+                        if (ESPID) {
+                            char buf[64];
+                            sprintf(buf, "ID: %llu", EspIdLong);
+                            ImVec2 size = ImGui::CalcTextSize(buf);
+                            float startX = PlayerPosHead.X - size.x / 2.0f;
+
+                            vList->AddText(ImVec2(startX + 1, infoY + 1), shadowBlack, buf);
+                            vList->AddText(ImVec2(startX, infoY), colorID, buf);
+                        } 

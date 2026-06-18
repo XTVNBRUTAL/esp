@@ -1,0 +1,1287 @@
+--[[
+    ZAN STORE - SILENT AIM + LEGIT AIMBOT + ESP 3D PREMIUM V10
+    Tính năng nổi bật:
+    - Silent Aim (aim ảo, không giật camera)
+    - Legit Aimbot (aim thật, tự nhiên, giống người)
+    - Speed (tăng tốc độ di chuyển)
+    - Rapid Fire (bắn nhanh)
+    - Aimbot Ghost (aim xuyên tường)
+    - Auto Reload (nạp đạn nhanh)
+    - ESP 3D: Box, Skeleton, Health Bar, Line, Tracker, ESP TOP
+    - Phím G: Menu | P: Silent Aim | H: ESP | K: Legit Aimbot
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse()
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+
+-- ===== CẤU HÌNH =====
+local Config = {
+    -- Silent Aim
+    SilentAimEnabled = false,
+    SilentAimFOV = 200,
+    AimPart = "Head",
+    TeamCheck = true,
+    WallCheck = false,
+    Smoothness = 0.08,
+    SilentAimKey = Enum.KeyCode.LeftControl,
+    AutoShoot = true,
+    AutoShootDelay = 0.05,
+    
+    -- Legit Aimbot
+    LegitAimbotEnabled = false,
+    LegitAimbotFOV = 150,
+    LegitSmoothness = 0.15,
+    LegitMaxAngle = 25,
+    LegitHumanize = true,
+    LegitAutoShoot = false,
+    
+    -- ESP
+    ESPEnabled = true,
+    Box3D = true,
+    Skeleton = true,
+    HealthBar = true,
+    LineTracer = true,
+    Tracker = true,
+    ESPTop = true,
+    NameESP = true,
+    DistanceESP = true,
+    ESPDistance = 500,
+    
+    -- Speed
+    SpeedEnabled = false,
+    SpeedMultiplier = 2.5,
+    
+    -- Rapid Fire
+    RapidFireEnabled = false,
+    RapidFireDelay = 0.01,
+    
+    -- Aimbot Ghost
+    GhostEnabled = false,
+    
+    -- Auto Reload
+    AutoReloadEnabled = false,
+    ReloadKey = Enum.KeyCode.R,
+    
+    -- Menu
+    MenuVisible = true,
+    
+    -- Colors
+    EnemyColor = Color3.fromRGB(255, 50, 50),
+    FriendlyColor = Color3.fromRGB(50, 255, 50),
+    SkeletonColor = Color3.fromRGB(255, 255, 255),
+    TracerColor = Color3.fromRGB(0, 200, 255),
+    TrackerColor = Color3.fromRGB(255, 200, 0),
+    FOVColor = Color3.fromRGB(0, 255, 255),
+    ESPTopColor = Color3.fromRGB(255, 255, 255)
+}
+
+-- ===== DRAWING OBJECT POOL =====
+local ObjectPool = {
+    Boxes3D = {},
+    Skeletons = {},
+    HealthBars = {},
+    Names = {},
+    Distances = {},
+    Tracers = {},
+    Trackers = {},
+    TrackerArrows = {},
+    HealthTexts = {},
+    Dots = {},
+    TrackerDots = {},
+    ESPTop = {},
+    ESPTopBG = {},
+    FOV = {}
+}
+
+local function InitPools()
+    for i = 1, 120 do
+        table.insert(ObjectPool.Boxes3D, Drawing.new("Quad"))
+        table.insert(ObjectPool.Skeletons, Drawing.new("Line"))
+        table.insert(ObjectPool.HealthBars, Drawing.new("Quad"))
+        table.insert(ObjectPool.Names, Drawing.new("Text"))
+        table.insert(ObjectPool.Distances, Drawing.new("Text"))
+        table.insert(ObjectPool.Tracers, Drawing.new("Line"))
+        table.insert(ObjectPool.Trackers, Drawing.new("Line"))
+        table.insert(ObjectPool.TrackerArrows, Drawing.new("Line"))
+        table.insert(ObjectPool.HealthTexts, Drawing.new("Text"))
+        table.insert(ObjectPool.Dots, Drawing.new("Circle"))
+        table.insert(ObjectPool.TrackerDots, Drawing.new("Circle"))
+        table.insert(ObjectPool.ESPTop, Drawing.new("Text"))
+        table.insert(ObjectPool.ESPTopBG, Drawing.new("Quad"))
+    end
+    for _, pool in pairs(ObjectPool) do
+        for _, obj in ipairs(pool) do
+            obj.Visible = false
+        end
+    end
+end
+InitPools()
+
+local function ResetAllObjects()
+    for _, pool in pairs(ObjectPool) do
+        for _, obj in ipairs(pool) do
+            obj.Visible = false
+        end
+    end
+end
+
+-- ===== VẼ FOV CIRCLE =====
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = false
+FOVCircle.Radius = Config.SilentAimFOV
+FOVCircle.Thickness = 2
+FOVCircle.Color = Color3.fromRGB(0, 255, 255)
+FOVCircle.Filled = false
+FOVCircle.Transparency = 0.25
+
+-- FOV Circle cho Legit Aimbot
+local LegitFOVCircle = Drawing.new("Circle")
+LegitFOVCircle.Visible = false
+LegitFOVCircle.Radius = Config.LegitAimbotFOV
+LegitFOVCircle.Thickness = 2
+LegitFOVCircle.Color = Color3.fromRGB(255, 200, 0)
+LegitFOVCircle.Filled = false
+LegitFOVCircle.Transparency = 0.25
+
+-- ===== TẠO MENU ZAN STORE =====
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = CoreGui
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Main Container
+local MainContainer = Instance.new("Frame")
+MainContainer.Size = UDim2.new(0, 420, 0, 700)
+MainContainer.Position = UDim2.new(0, 15, 0, 20)
+MainContainer.BackgroundColor3 = Color3.fromRGB(10, 10, 30)
+MainContainer.BackgroundTransparency = 0.05
+MainContainer.BorderSizePixel = 0
+MainContainer.ClipsDescendants = true
+MainContainer.Parent = ScreenGui
+
+-- Gradient Background
+local Gradient = Instance.new("UIGradient")
+Gradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 15, 45)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(15, 10, 35)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 5, 25))
+})
+Gradient.Parent = MainContainer
+
+-- Corner Radius
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 16)
+Corner.Parent = MainContainer
+
+-- Glowing Border
+local GlowBorder = Instance.new("Frame")
+GlowBorder.Size = UDim2.new(1, 0, 1, 0)
+GlowBorder.BackgroundTransparency = 1
+GlowBorder.BorderSizePixel = 2
+GlowBorder.BorderColor3 = Color3.fromRGB(255, 215, 0) -- Vàng Gold
+GlowBorder.Parent = MainContainer
+
+local GlowBorderCorner = Instance.new("UICorner")
+GlowBorderCorner.CornerRadius = UDim.new(0, 16)
+GlowBorderCorner.Parent = GlowBorder
+
+-- Glow Effect
+local GlowEffect = Instance.new("Frame")
+GlowEffect.Size = UDim2.new(1, 20, 1, 20)
+GlowEffect.Position = UDim2.new(0, -10, 0, -10)
+GlowEffect.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+GlowEffect.BackgroundTransparency = 0.95
+GlowEffect.BorderSizePixel = 0
+GlowEffect.Parent = MainContainer
+
+local GlowEffectCorner = Instance.new("UICorner")
+GlowEffectCorner.CornerRadius = UDim.new(0, 20)
+GlowEffectCorner.Parent = GlowEffect
+
+-- ===== HEADER =====
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, 60)
+Header.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+Header.BackgroundTransparency = 0.15
+Header.BorderSizePixel = 0
+Header.Parent = MainContainer
+
+local HeaderCorner = Instance.new("UICorner")
+HeaderCorner.CornerRadius = UDim.new(0, 16)
+HeaderCorner.Parent = Header
+
+-- Header Gradient (Vàng - Cam)
+local HeaderGradient = Instance.new("UIGradient")
+HeaderGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 215, 0)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 140, 0))
+})
+HeaderGradient.Parent = Header
+
+-- Title
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 1, 0)
+Title.Text = "🏪 ZAN STORE 🏪"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.BackgroundTransparency = 1
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 22
+Title.TextScaled = true
+Title.Parent = Header
+
+-- Subtitle
+local SubTitle = Instance.new("TextLabel")
+SubTitle.Size = UDim2.new(1, 0, 0, 18)
+SubTitle.Position = UDim2.new(0, 0, 0, 38)
+SubTitle.Text = "Silent Aim + Legit Aim + ESP 3D Pro"
+SubTitle.TextColor3 = Color3.fromRGB(255, 230, 150)
+SubTitle.BackgroundTransparency = 1
+SubTitle.Font = Enum.Font.Gotham
+SubTitle.TextSize = 10
+SubTitle.TextScaled = true
+SubTitle.Parent = Header
+
+-- Status Bar
+local StatusBar = Instance.new("Frame")
+StatusBar.Size = UDim2.new(0, 100, 0, 20)
+StatusBar.Position = UDim2.new(1, -110, 0, 5)
+StatusBar.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+StatusBar.BackgroundTransparency = 0.3
+StatusBar.BorderSizePixel = 0
+StatusBar.Parent = Header
+
+local StatusBarCorner = Instance.new("UICorner")
+StatusBarCorner.CornerRadius = UDim.new(1, 0)
+StatusBarCorner.Parent = StatusBar
+
+local StatusText = Instance.new("TextLabel")
+StatusText.Size = UDim2.new(1, 0, 1, 0)
+StatusText.Text = "● PREMIUM"
+StatusText.TextColor3 = Color3.fromRGB(255, 215, 0)
+StatusText.BackgroundTransparency = 1
+StatusText.Font = Enum.Font.GothamBold
+StatusText.TextSize = 10
+StatusText.Parent = StatusBar
+
+-- ===== SCROLL FRAME =====
+local ScrollFrame = Instance.new("ScrollingFrame")
+ScrollFrame.Size = UDim2.new(1, 0, 1, -70)
+ScrollFrame.Position = UDim2.new(0, 0, 0, 65)
+ScrollFrame.BackgroundTransparency = 1
+ScrollFrame.BorderSizePixel = 0
+ScrollFrame.ScrollBarThickness = 4
+ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 215, 0)
+ScrollFrame.Parent = MainContainer
+
+-- ===== CREATE SECTION =====
+local function CreateSection(title, yPos, icon)
+    local Section = Instance.new("Frame")
+    Section.Size = UDim2.new(1, -20, 0, 30)
+    Section.Position = UDim2.new(0, 10, 0, yPos)
+    Section.BackgroundTransparency = 1
+    Section.Parent = ScrollFrame
+    
+    local IconLabel = Instance.new("TextLabel")
+    IconLabel.Size = UDim2.new(0, 25, 1, 0)
+    IconLabel.Text = icon
+    IconLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+    IconLabel.BackgroundTransparency = 1
+    IconLabel.Font = Enum.Font.GothamBold
+    IconLabel.TextSize = 14
+    IconLabel.TextXAlignment = Enum.TextXAlignment.Left
+    IconLabel.Parent = Section
+    
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -30, 1, 0)
+    Label.Position = UDim2.new(0, 25, 0, 0)
+    Label.Text = title
+    Label.TextColor3 = Color3.fromRGB(255, 215, 0)
+    Label.BackgroundTransparency = 1
+    Label.Font = Enum.Font.GothamBold
+    Label.TextSize = 13
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Section
+    
+    local Line = Instance.new("Frame")
+    Line.Size = UDim2.new(1, 0, 0, 1)
+    Line.Position = UDim2.new(0, 0, 0, 28)
+    Line.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+    Line.BackgroundTransparency = 0.4
+    Line.Parent = Section
+    
+    return Section
+end
+
+-- ===== CREATE TOGGLE =====
+local function CreateToggle(name, yPos, callback, defaultState)
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(1, -20, 0, 32)
+    Frame.Position = UDim2.new(0, 10, 0, yPos)
+    Frame.BackgroundTransparency = 1
+    Frame.Parent = ScrollFrame
+    
+    local Hover = Instance.new("Frame")
+    Hover.Size = UDim2.new(1, 0, 1, 0)
+    Hover.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+    Hover.BackgroundTransparency = 0.9
+    Hover.BorderSizePixel = 0
+    Hover.Parent = Frame
+    
+    local HoverCorner = Instance.new("UICorner")
+    HoverCorner.CornerRadius = UDim.new(0, 6)
+    HoverCorner.Parent = Hover
+    
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -60, 1, 0)
+    Label.Text = name
+    Label.TextColor3 = Color3.fromRGB(220, 220, 220)
+    Label.BackgroundTransparency = 1
+    Label.Font = Enum.Font.Gotham
+    Label.TextSize = 12
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Frame
+    
+    local ToggleBtn = Instance.new("Frame")
+    ToggleBtn.Size = UDim2.new(0, 44, 0, 24)
+    ToggleBtn.Position = UDim2.new(1, -50, 0, 4)
+    ToggleBtn.BackgroundColor3 = defaultState and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(50, 50, 80)
+    ToggleBtn.BackgroundTransparency = 0.2
+    ToggleBtn.BorderSizePixel = 0
+    ToggleBtn.Parent = Frame
+    
+    local ToggleCorner = Instance.new("UICorner")
+    ToggleCorner.CornerRadius = UDim.new(1, 0)
+    ToggleCorner.Parent = ToggleBtn
+    
+    local ToggleCircle = Instance.new("Frame")
+    ToggleCircle.Size = UDim2.new(0, 20, 0, 20)
+    ToggleCircle.Position = defaultState and UDim2.new(1, -22, 0, 2) or UDim2.new(0, 2, 0, 2)
+    ToggleCircle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleCircle.BackgroundTransparency = 0.1
+    ToggleCircle.BorderSizePixel = 0
+    ToggleCircle.Parent = ToggleBtn
+    
+    local ToggleCircleCorner = Instance.new("UICorner")
+    ToggleCircleCorner.CornerRadius = UDim.new(1, 0)
+    ToggleCircleCorner.Parent = ToggleCircle
+    
+    local ToggleGlow = Instance.new("Frame")
+    ToggleGlow.Size = UDim2.new(1, 0, 1, 0)
+    ToggleGlow.Position = UDim2.new(0, 0, 0, 0)
+    ToggleGlow.BackgroundColor3 = defaultState and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(0, 0, 0)
+    ToggleGlow.BackgroundTransparency = 0.8
+    ToggleGlow.BorderSizePixel = 0
+    ToggleGlow.Parent = ToggleBtn
+    
+    local ToggleGlowCorner = Instance.new("UICorner")
+    ToggleGlowCorner.CornerRadius = UDim.new(1, 0)
+    ToggleGlowCorner.Parent = ToggleGlow
+    
+    local enabled = defaultState or false
+    
+    local function UpdateToggle()
+        local targetColor = enabled and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(50, 50, 80)
+        local targetPos = enabled and UDim2.new(1, -22, 0, 2) or UDim2.new(0, 2, 0, 2)
+        local glowColor = enabled and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(0, 0, 0)
+        local glowTrans = enabled and 0.3 or 0.8
+        
+        TweenService:Create(ToggleBtn, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+            BackgroundColor3 = targetColor
+        }):Play()
+        
+        TweenService:Create(ToggleCircle, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+            Position = targetPos
+        }):Play()
+        
+        TweenService:Create(ToggleGlow, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+            BackgroundColor3 = glowColor,
+            BackgroundTransparency = glowTrans
+        }):Play()
+    end
+    
+    ToggleBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            enabled = not enabled
+            callback(enabled)
+            UpdateToggle()
+        end
+    end)
+    
+    ToggleBtn.MouseEnter:Connect(function()
+        TweenService:Create(ToggleBtn, TweenInfo.new(0.2), {
+            BackgroundTransparency = 0.1
+        }):Play()
+    end)
+    
+    ToggleBtn.MouseLeave:Connect(function()
+        TweenService:Create(ToggleBtn, TweenInfo.new(0.2), {
+            BackgroundTransparency = 0.2
+        }):Play()
+    end)
+    
+    return Frame
+end
+
+-- ===== BUILD MENU =====
+local yPos = 5
+
+-- Silent Aim Section
+CreateSection("🎯 SILENT AIM", yPos, "🎯")
+yPos = yPos + 35
+
+CreateToggle("Silent Aim [P]", yPos, function(state) 
+    Config.SilentAimEnabled = state
+    FOVCircle.Visible = state
+    if state and Config.LegitAimbotEnabled then
+        Config.LegitAimbotEnabled = false
+        LegitFOVCircle.Visible = false
+    end
+end, false)
+yPos = yPos + 37
+
+CreateToggle("Team Check", yPos, function(state) Config.TeamCheck = state end, true)
+yPos = yPos + 37
+
+CreateToggle("Wall Check", yPos, function(state) Config.WallCheck = state end, false)
+yPos = yPos + 37
+
+CreateToggle("Auto Shoot", yPos, function(state) Config.AutoShoot = state end, true)
+yPos = yPos + 37
+
+CreateToggle("Hold [CTRL] to Aim", yPos, function(state) end, true)
+yPos = yPos + 42
+
+-- Legit Aimbot Section
+CreateSection("🎯 LEGIT AIMBOT", yPos, "🎯")
+yPos = yPos + 35
+
+CreateToggle("Legit Aimbot [K]", yPos, function(state) 
+    Config.LegitAimbotEnabled = state
+    LegitFOVCircle.Visible = state
+    if state and Config.SilentAimEnabled then
+        Config.SilentAimEnabled = false
+        FOVCircle.Visible = false
+    end
+end, false)
+yPos = yPos + 37
+
+CreateToggle("Humanize Aim", yPos, function(state) Config.LegitHumanize = state end, true)
+yPos = yPos + 37
+
+CreateToggle("Legit Auto Shoot", yPos, function(state) Config.LegitAutoShoot = state end, false)
+yPos = yPos + 42
+
+-- Ghost Section
+CreateSection("👻 GHOST MODE", yPos, "👻")
+yPos = yPos + 35
+
+CreateToggle("Ghost Mode", yPos, function(state) 
+    Config.GhostEnabled = state
+    Config.WallCheck = not state
+    print("👻 Ghost Mode: " .. (state and "ON ✅" or "OFF ❌"))
+end, false)
+yPos = yPos + 37
+
+-- Speed Section
+CreateSection("⚡ SPEED", yPos, "⚡")
+yPos = yPos + 35
+
+CreateToggle("Speed Boost", yPos, function(state) Config.SpeedEnabled = state end, false)
+yPos = yPos + 37
+
+-- Rapid Fire Section
+CreateSection("🔥 RAPID FIRE", yPos, "🔥")
+yPos = yPos + 35
+
+CreateToggle("Rapid Fire", yPos, function(state) Config.RapidFireEnabled = state end, false)
+yPos = yPos + 37
+
+-- Auto Reload Section
+CreateSection("🔄 AUTO RELOAD", yPos, "🔄")
+yPos = yPos + 35
+
+CreateToggle("Auto Reload", yPos, function(state) Config.AutoReloadEnabled = state end, false)
+yPos = yPos + 42
+
+-- ESP Section
+CreateSection("👁️ ESP 3D PRO", yPos, "👁️")
+yPos = yPos + 35
+
+CreateToggle("ESP [H]", yPos, function(state) 
+    Config.ESPEnabled = state
+    if not state then ResetAllObjects() end
+end, true)
+yPos = yPos + 37
+
+CreateToggle("ESP TOP", yPos, function(state) Config.ESPTop = state end, true)
+yPos = yPos + 37
+
+CreateToggle("Box 3D", yPos, function(state) Config.Box3D = state end, true)
+yPos = yPos + 37
+
+CreateToggle("Skeleton", yPos, function(state) Config.Skeleton = state end, true)
+yPos = yPos + 37
+
+CreateToggle("Health Bar", yPos, function(state) Config.HealthBar = state end, true)
+yPos = yPos + 37
+
+CreateToggle("Line Tracer", yPos, function(state) Config.LineTracer = state end, true)
+yPos = yPos + 37
+
+CreateToggle("Định vị [Tracker]", yPos, function(state) Config.Tracker = state end, true)
+yPos = yPos + 37
+
+CreateToggle("Name", yPos, function(state) Config.NameESP = state end, true)
+yPos = yPos + 37
+
+CreateToggle("Distance", yPos, function(state) Config.DistanceESP = state end, true)
+yPos = yPos + 42
+
+-- Info Box
+local InfoBox = Instance.new("Frame")
+InfoBox.Size = UDim2.new(1, -20, 0, 50)
+InfoBox.Position = UDim2.new(0, 10, 0, yPos)
+InfoBox.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+InfoBox.BackgroundTransparency = 0.1
+InfoBox.BorderSizePixel = 0
+InfoBox.Parent = ScrollFrame
+
+local InfoBoxCorner = Instance.new("UICorner")
+InfoBoxCorner.CornerRadius = UDim.new(0, 8)
+InfoBoxCorner.Parent = InfoBox
+
+local InfoGlow = Instance.new("Frame")
+InfoGlow.Size = UDim2.new(1, 0, 1, 0)
+InfoGlow.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+InfoGlow.BackgroundTransparency = 0.9
+InfoGlow.BorderSizePixel = 0
+InfoGlow.Parent = InfoBox
+
+local InfoGlowCorner = Instance.new("UICorner")
+InfoGlowCorner.CornerRadius = UDim.new(0, 8)
+InfoGlowCorner.Parent = InfoGlow
+
+local InfoText = Instance.new("TextLabel")
+InfoText.Size = UDim2.new(1, 0, 1, 0)
+InfoText.Text = "🏪 ZAN STORE PREMIUM 🏪\n🎯 P: Silent Aim | 🎯 K: Legit Aim | 👁️ H: ESP | 🔲 G: Menu"
+InfoText.TextColor3 = Color3.fromRGB(255, 215, 0)
+InfoText.BackgroundTransparency = 1
+InfoText.Font = Enum.Font.GothamBold
+InfoText.TextSize = 11
+InfoText.Parent = InfoBox
+
+-- Update ScrollFrame
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, yPos + 100)
+
+-- ===== ANIMATION MENU =====
+MainContainer.BackgroundTransparency = 1
+TweenService:Create(MainContainer, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {
+    BackgroundTransparency = 0.05
+}):Play()
+
+-- ===== HÀM BẬT/TẮT MENU =====
+local function ToggleMenu()
+    Config.MenuVisible = not Config.MenuVisible
+    MainContainer.Visible = Config.MenuVisible
+    print("🏪 ZAN STORE Menu: " .. (Config.MenuVisible and "HIỂN THỊ ✅" or "ẨN ❌"))
+end
+
+-- ===== KEYBINDS =====
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.G then
+        ToggleMenu()
+    end
+    
+    if input.KeyCode == Enum.KeyCode.P then
+        Config.SilentAimEnabled = not Config.SilentAimEnabled
+        FOVCircle.Visible = Config.SilentAimEnabled
+        if Config.SilentAimEnabled and Config.LegitAimbotEnabled then
+            Config.LegitAimbotEnabled = false
+            LegitFOVCircle.Visible = false
+        end
+        print("🎯 ZAN STORE Silent Aim: " .. (Config.SilentAimEnabled and "ON ✅" or "OFF ❌"))
+    end
+    
+    if input.KeyCode == Enum.KeyCode.K then
+        Config.LegitAimbotEnabled = not Config.LegitAimbotEnabled
+        LegitFOVCircle.Visible = Config.LegitAimbotEnabled
+        if Config.LegitAimbotEnabled and Config.SilentAimEnabled then
+            Config.SilentAimEnabled = false
+            FOVCircle.Visible = false
+        end
+        print("🎯 ZAN STORE Legit Aimbot: " .. (Config.LegitAimbotEnabled and "ON ✅" or "OFF ❌"))
+    end
+    
+    if input.KeyCode == Enum.KeyCode.H then
+        Config.ESPEnabled = not Config.ESPEnabled
+        if not Config.ESPEnabled then ResetAllObjects() end
+        print("👁️ ZAN STORE ESP: " .. (Config.ESPEnabled and "ON ✅" or "OFF ❌"))
+    end
+end)
+
+-- ===== SPEED =====
+local function SpeedBoost()
+    if not Config.SpeedEnabled then return end
+    
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return end
+    
+    if humanoid.WalkSpeed < 50 then
+        humanoid.WalkSpeed = 16 * Config.SpeedMultiplier
+        humanoid.JumpPower = 50 * Config.SpeedMultiplier
+    end
+end
+
+-- ===== RAPID FIRE =====
+local RapidFireConnection = nil
+
+local function RapidFire()
+    if not Config.RapidFireEnabled then
+        if RapidFireConnection then
+            RapidFireConnection:Disconnect()
+            RapidFireConnection = nil
+        end
+        return
+    end
+    
+    if not RapidFireConnection then
+        RapidFireConnection = RunService.Heartbeat:Connect(function()
+            if Config.RapidFireEnabled then
+                mouse1click()
+                wait(Config.RapidFireDelay)
+            end
+        end)
+    end
+end
+
+-- ===== AUTO RELOAD =====
+local function AutoReload()
+    if not Config.AutoReloadEnabled then return end
+    
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    local tool = character:FindFirstChildOfClass("Tool")
+    if not tool then return end
+    
+    local weapon = tool:FindFirstChild("Weapon") or tool:FindFirstChild("Gun") or tool:FindFirstChild("Firearm")
+    if not weapon then return end
+    
+    local ammo = weapon:FindFirstChild("Ammo") or weapon:FindFirstChild("CurrentAmmo") or weapon:FindFirstChild("Bullets")
+    if ammo then
+        if ammo.Value <= 0 then
+            local VirtualInputManager = game:GetService("VirtualInputManager")
+            VirtualInputManager:SendKeyEvent(true, "R", false, game)
+            wait(0.1)
+            VirtualInputManager:SendKeyEvent(false, "R", false, game)
+        end
+    end
+end
+
+-- ===== HÀM KIỂM TRA TƯỜNG =====
+local function IsVisible(targetPosition)
+    if Config.GhostEnabled then return true end
+    
+    local origin = Camera.CFrame.Position
+    local direction = (targetPosition - origin).unit * (targetPosition - origin).magnitude
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    local result = workspace:Raycast(origin, direction, raycastParams)
+    return result == nil or result.Instance:IsDescendantOf(targetPosition.Parent)
+end
+
+-- ===== LẤY DANH SÁCH MỤC TIÊU =====
+local function GetAllTargets()
+    local targets = {}
+    local playerPos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not playerPos then return targets end
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        if not player.Character then continue end
+        
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if not humanoid or humanoid.Health <= 0 then continue end
+        
+        local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
+        if not rootPart then continue end
+        
+        if Config.TeamCheck and player.Team == LocalPlayer.Team then
+            continue
+        end
+        
+        if Config.WallCheck and not IsVisible(rootPart) then
+            continue
+        end
+        
+        local distance = (rootPart.Position - playerPos.Position).Magnitude
+        if distance > Config.ESPDistance then continue end
+        
+        local screenPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+        if not onScreen then continue end
+        
+        local bones = {}
+        local character = player.Character
+        if character then
+            bones = {
+                Head = character:FindFirstChild("Head"),
+                Torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"),
+                LeftArm = character:FindFirstChild("LeftUpperArm") or character:FindFirstChild("Left Arm"),
+                RightArm = character:FindFirstChild("RightUpperArm") or character:FindFirstChild("Right Arm"),
+                LeftLeg = character:FindFirstChild("LeftLowerLeg") or character:FindFirstChild("Left Leg"),
+                RightLeg = character:FindFirstChild("RightLowerLeg") or character:FindFirstChild("Right Leg"),
+                RootPart = rootPart
+            }
+        end
+        
+        table.insert(targets, {
+            Player = player,
+            Character = character,
+            RootPart = rootPart,
+            Humanoid = humanoid,
+            Bones = bones,
+            Position = rootPart.Position,
+            ScreenPos = Vector2.new(screenPos.X, screenPos.Y),
+            Distance = distance,
+            IsEnemy = player.Team ~= LocalPlayer.Team,
+            Health = humanoid.Health,
+            MaxHealth = humanoid.MaxHealth,
+            Velocity = humanoid.MoveDirection or Vector3.new(0, 0, 0)
+        })
+    end
+    
+    return targets
+end
+
+-- ===== LẤY VỊ TRÍ BONE =====
+local function GetBoneScreenPos(bone)
+    if not bone then return nil end
+    local pos, onScreen = Camera:WorldToViewportPoint(bone.Position)
+    if onScreen then
+        return Vector2.new(pos.X, pos.Y)
+    end
+    return nil
+end
+
+-- ===== VẼ SKELETON =====
+local function DrawSkeleton(bones, color, index)
+    if not bones then return index end
+    
+    local function DrawLine(from, to)
+        if not from or not to then return index end
+        local line = ObjectPool.Skeletons[index]
+        if line then
+            line.From = from
+            line.To = to
+            line.Color = color
+            line.Thickness = 1.5
+            line.Transparency = 0.7
+            line.Visible = true
+            index = index + 1
+        end
+        return index
+    end
+    
+    local headPos = GetBoneScreenPos(bones.Head)
+    local torsoPos = GetBoneScreenPos(bones.Torso)
+    local leftArmPos = GetBoneScreenPos(bones.LeftArm)
+    local rightArmPos = GetBoneScreenPos(bones.RightArm)
+    local leftLegPos = GetBoneScreenPos(bones.LeftLeg)
+    local rightLegPos = GetBoneScreenPos(bones.RightLeg)
+    local rootPos = GetBoneScreenPos(bones.RootPart)
+    
+    if headPos and torsoPos then index = DrawLine(headPos, torsoPos) end
+    if torsoPos and leftArmPos then index = DrawLine(torsoPos, leftArmPos) end
+    if torsoPos and rightArmPos then index = DrawLine(torsoPos, rightArmPos) end
+    if torsoPos and rootPos then index = DrawLine(torsoPos, rootPos) end
+    if rootPos and leftLegPos then index = DrawLine(rootPos, leftLegPos) end
+    if rootPos and rightLegPos then index = DrawLine(rootPos, rightLegPos) end
+    
+    local dotIdx = 1
+    for _, pos in pairs({headPos, torsoPos, leftArmPos, rightArmPos, leftLegPos, rightLegPos, rootPos}) do
+        if pos then
+            local dot = ObjectPool.Dots[dotIdx]
+            if dot then
+                dot.Position = pos
+                dot.Radius = 2
+                dot.Color = color
+                dot.Thickness = 1
+                dot.Filled = true
+                dot.Visible = true
+                dotIdx = dotIdx + 1
+            end
+        end
+    end
+    
+    return index
+end
+
+-- ===== VẼ BOX 3D =====
+local function DrawBox3D(rootPart, head, color, index)
+    if not rootPart or not head then return index end
+    
+    local size = rootPart.Size
+    local height = size.Y * 1.8
+    local width = size.X * 1.5
+    local depth = size.Z * 0.8
+    
+    local center = rootPart.Position
+    local points = {}
+    
+    for x = -1, 1, 2 do
+        for y = -1, 1, 2 do
+            for z = -1, 1, 2 do
+                local p = center + Vector3.new(x * width/2, y * height/2, z * depth/2)
+                local screen, onScreen = Camera:WorldToViewportPoint(p)
+                if onScreen then
+                    table.insert(points, Vector2.new(screen.X, screen.Y))
+                end
+            end
+        end
+    end
+    
+    if #points >= 8 then
+        local edges = {
+            {1,2}, {2,4}, {4,3}, {3,1},
+            {5,6}, {6,8}, {8,7}, {7,5},
+            {1,5}, {2,6}, {3,7}, {4,8}
+        }
+        
+        for _, edge in pairs(edges) do
+            if points[edge[1]] and points[edge[2]] then
+                local line = ObjectPool.Boxes3D[index]
+                if line then
+                    line.From = points[edge[1]]
+                    line.To = points[edge[2]]
+                    line.Color = color
+                    line.Thickness = 1.5
+                    line.Transparency = 0.6
+                    line.Visible = true
+                    index = index + 1
+                end
+            end
+        end
+    end
+    
+    return index
+end
+
+-- ===== VẼ HEALTH BAR =====
+local function DrawHealthBar(target, index)
+    if not target.Bones.Head or not target.RootPart then return index end
+    
+    local healthPercent = math.max(0, target.Health / target.MaxHealth)
+    local headPos = GetBoneScreenPos(target.Bones.Head)
+    local rootPos = GetBoneScreenPos(target.RootPart)
+    
+    if not headPos or not rootPos then return index end
+    
+    local height = rootPos.Y - headPos.Y
+    local width = height * 0.5
+    local barX = headPos.X - width/2
+    local barY = rootPos.Y + 5
+    local barWidth = width
+    local barHeight = 4
+    
+    local bgBar = ObjectPool.HealthBars[index]
+    if bgBar then
+        bgBar.PointA = Vector2.new(barX, barY)
+        bgBar.PointB = Vector2.new(barX + barWidth, barY)
+        bgBar.PointC = Vector2.new(barX + barWidth, barY + barHeight)
+        bgBar.PointD = Vector2.new(barX, barY + barHeight)
+        bgBar.Color = Color3.fromRGB(30, 30, 30)
+        bgBar.Filled = true
+        bgBar.Visible = true
+        index = index + 1
+    end
+    
+    local healthBar = ObjectPool.HealthBars[index]
+    if healthBar then
+        healthBar.PointA = Vector2.new(barX, barY)
+        healthBar.PointB = Vector2.new(barX + barWidth * healthPercent, barY)
+        healthBar.PointC = Vector2.new(barX + barWidth * healthPercent, barY + barHeight)
+        healthBar.PointD = Vector2.new(barX, barY + barHeight)
+        healthBar.Color = Color3.fromRGB(255 * (1 - healthPercent), 255 * healthPercent, 0)
+        healthBar.Filled = true
+        healthBar.Visible = true
+        index = index + 1
+    end
+    
+    local healthText = ObjectPool.HealthTexts[index]
+    if healthText then
+        healthText.Text = string.format("%.0f/%d", target.Health, target.MaxHealth)
+        healthText.Color = Color3.fromRGB(255, 255, 255)
+        healthText.Size = 9
+        healthText.Center = true
+        healthText.Outline = true
+        healthText.OutlineColor = Color3.fromRGB(0, 0, 0)
+        healthText.Position = Vector2.new(barX + barWidth/2, barY + barHeight + 12)
+        healthText.Visible = true
+        index = index + 1
+    end
+    
+    return index
+end
+
+-- ===== VẼ ESP TOP =====
+local function DrawESPTop(target, index)
+    if not Config.ESPTop then return index end
+    if not target.Bones.Head then return index end
+    
+    local headPos = GetBoneScreenPos(target.Bones.Head)
+    if not headPos then return index end
+    
+    local color = target.IsEnemy and Config.EnemyColor or Config.FriendlyColor
+    local healthPercent = target.Health / target.MaxHealth
+    
+    local topText = string.format("%s | ❤️%.0f%% | 📏%.0fm", 
+        target.Player.Name, 
+        healthPercent * 100, 
+        target.Distance
+    )
+    
+    local bg = ObjectPool.ESPTopBG[index]
+    if bg then
+        local textWidth = #topText * 6 + 20
+        bg.PointA = Vector2.new(headPos.X - textWidth/2, headPos.Y - 40)
+        bg.PointB = Vector2.new(headPos.X + textWidth/2, headPos.Y - 40)
+        bg.PointC = Vector2.new(headPos.X + textWidth/2, headPos.Y - 20)
+        bg.PointD = Vector2.new(headPos.X - textWidth/2, headPos.Y - 20)
+        bg.Color = Color3.fromRGB(0, 0, 0)
+        bg.Transparency = 0.5
+        bg.Filled = true
+        bg.Visible = true
+        index = index + 1
+    end
+    
+    local text = ObjectPool.ESPTop[index]
+    if text then
+        text.Text = topText
+        text.Color = color
+        text.Size = 12
+        text.Center = true
+        text.Outline = true
+        text.OutlineColor = Color3.fromRGB(0, 0, 0)
+        text.Position = Vector2.new(headPos.X, headPos.Y - 34)
+        text.Visible = true
+        index = index + 1
+    end
+    
+    return index
+end
+
+-- ===== ĐỊNH VỊ =====
+local function DrawTracker(target, index)
+    if not target then return index end
+    
+    local myPos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myPos then return index end
+    
+    local myScreenPos = Camera:WorldToViewportPoint(myPos.Position)
+    local myScreen = Vector2.new(myScreenPos.X, myScreenPos.Y)
+    
+    local tracker = ObjectPool.Trackers[index]
+    if tracker then
+        tracker.From = myScreen
+        tracker.To = target.ScreenPos
+        tracker.Color = Config.TrackerColor
+        tracker.Thickness = 1.5
+        tracker.Transparency = 0.4
+        tracker.Visible = true
+        index = index + 1
+    end
+    
+    local dot = ObjectPool.TrackerDots[index]
+    if dot then
+        dot.Position = target.ScreenPos
+        dot.Radius = 6
+        dot.Color = Config.TrackerColor
+        dot.Thickness = 2
+        dot.Filled = true
+        dot.Transparency = 0.7
+        dot.Visible = true
+        index = index + 1
+    end
+    
+    local ring = ObjectPool.TrackerDots[index]
+    if ring then
+        local pulse = math.sin(tick() * 3) * 2 + 8
+        ring.Position = target.ScreenPos
+        ring.Radius = pulse
+        ring.Color = Config.TrackerColor
+        ring.Thickness = 1.5
+        ring.Filled = false
+        ring.Transparency = 0.5 + math.sin(tick() * 3) * 0.2
+        ring.Visible = true
+        index = index + 1
+    end
+    
+    if target.Velocity and target.Velocity.Magnitude > 0.5 then
+        local dirPos = target.RootPart.Position + (target.Velocity.Unit * 5)
+        local dirScreen, onScreen = Camera:WorldToViewportPoint(dirPos)
+        if onScreen then
+            local arrow = ObjectPool.TrackerArrows[index]
+            if arrow then
+                arrow.From = target.ScreenPos
+                arrow.To = Vector2.new(dirScreen.X, dirScreen.Y)
+                arrow.Color = Color3.fromRGB(255, 255, 0)
+                arrow.Thickness = 2
+                arrow.Transparency = 0.6
+                arrow.Visible = true
+                index = index + 1
+            end
+        end
+    end
+    
+    return index
+end
+
+-- ===== UPDATE ESP =====
+local function UpdateESP()
+    if not Config.ESPEnabled then
+        ResetAllObjects()
+        return
+    end
+    
+    ResetAllObjects()
+    
+    local targets = GetAllTargets()
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    
+    local boxIdx = 1
+    local skelIdx = 1
+    local healthIdx = 1
+    local nameIdx = 1
+    local distIdx = 1
+    local tracerIdx = 1
+    local trackerIdx = 1
+    local topIdx = 1
+    
+    for _, target in pairs(targets) do
+        local color = target.IsEnemy and Config.EnemyColor or Config.FriendlyColor
+        
+        if Config.Box3D then
+            boxIdx = DrawBox3D(target.RootPart, target.Bones.Head, color, boxIdx)
+        end
+        
+        if Config.Skeleton then
+            skelIdx = DrawSkeleton(target.Bones, Config.SkeletonColor, skelIdx)
+        end
+        
+        if Config.HealthBar then
+            healthIdx = DrawHealthBar(target, healthIdx)
+        end
+        
+        if Config.ESPTop then
+            topIdx = DrawESPTop(target, topIdx)
+        end
+        
+        if Config.NameESP and not Config.ESPTop then
+            local headPos = GetBoneScreenPos(target.Bones.Head)
+            if headPos then
+                local nameObj = ObjectPool.Names[nameIdx]
+                if nameObj then
+                    nameObj.Text = target.Player.Name
+                    nameObj.Color = color
+                    nameObj.Size = 13
+                    nameObj.Center = true
+                    nameObj.Outline = true
+                    nameObj.OutlineColor = Color3.fromRGB(0, 0, 0)
+                    nameObj.Position = Vector2.new(target.ScreenPos.X, headPos.Y - 25)
+                    nameObj.Visible = true
+                    nameIdx = nameIdx + 1
+                end
+            end
+        end
+        
+        if Config.DistanceESP and not Config.ESPTop then
+            local distObj = ObjectPool.Distances[distIdx]
+            if distObj then
+                distObj.Text = string.format("📏 %.0fm", target.Distance)
+                distObj.Color = Color3.fromRGB(200, 200, 200)
+                distObj.Size = 11
+                distObj.Center = true
+                distObj.Outline = true
+                distObj.OutlineColor = Color3.fromRGB(0, 0, 0)
+                distObj.Position = Vector2.new(target.ScreenPos.X, target.ScreenPos.Y + 40)
+                distObj.Visible = true
+                distIdx = distIdx + 1
+            end
+        end
+        
+        if Config.LineTracer then
+            local tracer = ObjectPool.Tracers[tracerIdx]
+            if tracer then
+                tracer.From = screenCenter
+                tracer.To = target.ScreenPos
+                tracer.Color = Config.TracerColor
+                tracer.Thickness = 1.5
+                tracer.Transparency = 0.5
+                tracer.Visible = true
+                tracerIdx = tracerIdx + 1
+            end
+        end
+        
+        if Config.Tracker then
+            trackerIdx = DrawTracker(target, trackerIdx)
+        end
+    end
+end
+
+-- ===== SILENT AIM =====
+local function SilentAim()
+    if not Config.SilentAimEnabled then return end
+    
+    if not UserInputService:IsKeyDown(Config.SilentAimKey) then return end
+    
+    local targets = GetAllTargets()
+    if #targets == 0 then return end
+    
+    local mousePos = UserInputService:GetMouseLocation()
+    local closestTarget = nil
+    local shortestDist = math.huge
+    
+    for _, target in pairs(targets) do
+        local targetPart = target.Character:FindFirstChild(Config.AimPart) or target.Bones.Head or target.RootPart
+        if targetPart then
+            local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+            if onScreen then
+                local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                if dist < shortestDist and dist < Config.SilentAimFOV then
+                    shortestDist = dist
+                    closestTarget = target
+                end
+            end
+        end
+    end
+    
+    if closestTarget then
+        local targetPart = closestTarget.Character:FindFirstChild(Config.AimPart) or closestTarget.Bones.Head or closestTarget.RootPart
+        if targetPart then
+            local targetPos = Camera:WorldToViewportPoint(targetPart.Position)
+            local delta = Vector2.new(targetPos.X, targetPos.Y) - mousePos
+            
+            mousemoverel(delta.X * Config.Smoothness, delta.Y * Config.Smoothness)
+            
+            if Config.AutoShoot then
+                if delta.Magnitude < Config.SilentAimFOV then
+                    mouse1click()
+                    wait(Config.AutoShootDelay)
+                end
+            end
+        end
+    end
+end
+
+-- ===== LEGIT AIMBOT =====
+local function LegitAimbot()
+    if not Config.LegitAimbotEnabled then return end
+    
+    local targets = GetAllTargets()
+    if #targets == 0 then return end
+    
+    local mousePos = UserInputService:GetMouseLocation()
+    local closestTarget = nil
+    local shortestDist = math.huge
+    
+    for _, target in pairs(targets) do
+        local targetPart = target.Character:FindFirstChild(Config.AimPart) or target.Bones.Head or target.RootPart
+        if targetPart then
+            local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+            if onScreen then
+                local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                if dist < shortestDist and dist < Config.LegitAimbotFOV then
+                    shortestDist = dist
+                    closestTarget = target
+                end
+            end
+        end
+    end
+    
+    if closestTarget then
+        local targetPart = closestTarget.Character:FindFirstChild(Config.AimPart) or closestTarget.Bones.Head or closestTarget.RootPart
+        if targetPart then
+            local targetPos = Camera:WorldToViewportPoint(targetPart.Position)
+            local delta = Vector2.new(targetPos.X, targetPos.Y) - mousePos
+            
+            local angle = math.sqrt(delta.X^2 + delta.Y^2)
+            if angle > Config.LegitMaxAngle then
+                delta = delta / angle * Config.LegitMaxAngle
+            end
+            
+            if Config.LegitHumanize then
+                local randomOffset = Vector2.new(
+                    (math.random() - 0.5) * 0.5,
+                    (math.random() - 0.5) * 0.5
+                )
+                delta = delta + randomOffset
+            end
+            
+            mousemoverel(delta.X * Config.LegitSmoothness, delta.Y * Config.LegitSmoothness)
+            
+            if Config.LegitAutoShoot then
+                if angle < Config.LegitAimbotFOV then
+                    mouse1click()
+                    wait(0.05)
+                end
+            end
+        end
+    end
+end
+
+-- ===== VÒNG LẶP CHÍNH =====
+local frameCount = 0
+
+RunService.Heartbeat:Connect(function()
+    frameCount = frameCount + 1
+    
+    if Config.SilentAimEnabled then
+        local mousePos = UserInputService:GetMouseLocation()
+        FOVCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
+        FOVCircle.Visible = true
+    else
+        FOVCircle.Visible = false
+    end
+    
+    if Config.LegitAimbotEnabled then
+        local mousePos = UserInputService:GetMouseLocation()
+        LegitFOVCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
+        LegitFOVCircle.Visible = true
+    else
+        LegitFOVCircle.Visible = false
+    end
+    
+    if frameCount % 2 == 0 then
+        UpdateESP()
+    end
+    
+    SilentAim()
+    LegitAimbot()
+    SpeedBoost()
+    RapidFire()
+    AutoReload()
+end)
+
+print("🏪 ZAN STORE PREMIUM LOADED SUCCESSFULLY!")
+print("📌 Tính năng: Silent Aim, Legit Aim, ESP 3D, Speed, Rapid Fire, Ghost, Auto Reload")
+print("🎯 Press [P] to toggle Silent Aim")
+print("🎯 Press [K] to toggle Legit Aimbot")
+print("👁️ Press [H] to toggle ESP")
+print("🔲 Press [G] to toggle Menu")
+print("📍 Silent Aim: Hold [CTRL] to activate")
+print("👻 Ghost Mode: Aim xuyên tường")
+print("⚡ Speed: Tăng tốc độ di chuyển")
+print("🔥 Rapid Fire: Bắn cực nhanh")
+print("🔄 Auto Reload: Tự động nạp đạn khi hết")
+print("💎 ZAN STORE - Premium Quality Scripts!")
